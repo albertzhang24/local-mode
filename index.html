@@ -173,7 +173,7 @@
 
 <script>
 const GAME_URL = 'albertzhang24.github.io/local-mode';
-const SHEET_URL = '';   // Google Apps Script web-app URL (…/exec). Empty = nothing is saved.
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwE8e1DkDj_NFy3pXCsZhUGAjRqdlqrTVJYGIm42hQqkNBSk3BQn3U0cnasVIiP5IQvzQ/exec';   // Google Apps Script web-app URL (…/exec). Empty = nothing is saved.
 const CONCIERGE = '';   // WhatsApp number for the human concierge test, digits only. Empty = skip that screen.
 const PARAMS = new URLSearchParams(location.search);
 const CHAT = PARAMS.get('g') || 'direct';
@@ -408,6 +408,7 @@ const SCREENS = {
     <div class="tkt">
       <div class="fl">Carry-on ${S.packed.length}/${PACK_SLOTS}</div>
       <h2 style="font:800 34px/1 'Barlow Condensed',sans-serif;margin-top:6px">Set up four apps before takeoff</h2>
+      <p class="lede" style="margin-top:8px;font-size:15px">Five stops, four apps. A local can still ace all five — some apps work at more than one stop, and some stops don’t need an app at all.</p>
       <div class="grid">${D().pack.map(([n]) => { const on = S.packed.includes(n);
         return `<button class="app ${on ? 'on' : full ? 'off' : ''}" data-act="pack" data-arg="${n}" aria-pressed="${on}">${logo(n)}${n}${on ? '<span class="packed">Packed</span>' : ''}</button>`; }).join('')}</div>
       <div class="tags">${Array.from({ length: PACK_SLOTS }, (_, i) => `<i class="${i < S.packed.length ? 'full' : ''}"></i>`).join('')}</div>
@@ -505,6 +506,7 @@ const SCREENS = {
       <p class="explain">One star for every stop where you did what a local would do. A local packs the right 4 apps and makes the fastest move at each stop.</p>
       <div class="perf"></div>
       <div class="fl" style="margin-bottom:10px;display:flex;justify-content:space-between"><span>Your route</span><span>${goodPacks()}/${PACK_SLOTS} apps packed right</span></div>
+      <p class="wentdark" style="font-weight:500">${lc('star')}A local packs: ${localPlan().pack.join(', ')}</p>
       ${S.packed.some(dark) ? `<p class="wentdark">${lc('moon')}Went dark in ${d.country}: ${S.packed.filter(dark).join(', ')}</p>` : ''}
       <div>${S.picks.map((pk, i) => `<div class="stop"><div class="rl"><span class="st"></span>${i < d.moments.length - 1 ? `<span class="seg" style="background:var(--${band(pk.m)})"></span>` : ''}</div>
         <div class="nm">${d.moments[i].st}<small>${matched(i) ? `${lc('star')} ${d.moments[i].opts[pk.i].l} — same as a local` : `${d.moments[i].opts[pk.i].l}. A local: ${localOpt(i).l}, +${fmt(localOpt(i).m)}`}</small></div><div class="c num">+${fmt(pk.m)}</div></div>`).join('')}</div>
