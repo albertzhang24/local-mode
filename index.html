@@ -61,9 +61,8 @@
   .flap::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #0A0C0E; }
   .lb { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; padding: 9px 4px; border-top: 1px solid #262C31; font: 700 20px/1 'Barlow Condensed', sans-serif; letter-spacing: .04em; text-transform: uppercase; }
   .lb .me { color: #fff; } .lb small { color: #8E969B; font-size: 12px; letter-spacing: .08em; }
-  .nick { display: flex; gap: 8px; margin-top: 12px; }
-  .nick input { flex: 1; min-width: 0; background: #1D2327; border: 1px solid #333B41; color: #fff; padding: 12px; border-radius: 8px; font-size: 16px; }
-  .nick button { background: var(--gold); color: var(--ink); border-radius: 8px; padding: 0 16px; font: 800 17px/1 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+  .pname { width: 100%; margin-top: 6px; background: #fff; border: 1.5px solid var(--rule); border-radius: 10px; padding: 12px 14px; font: 700 22px/1 'Barlow Condensed', sans-serif; letter-spacing: .03em; color: var(--ink); }
+  .pname::placeholder { color: #9AA59F; }
 
   /* Pack */
   .status { display: flex; justify-content: space-between; gap: 8px; background: var(--board); color: var(--gold); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font: 700 17px/1 'Barlow Condensed', sans-serif; letter-spacing: .06em; text-transform: uppercase; }
@@ -287,13 +286,13 @@ const optIcon = o => o.needs ? logo(o.needs) : `<span class="glyph" aria-hidden=
 const deg = m => `${Math.min(360, m * 2)}deg`;   // ring fills at 3 hours
 
 // ---------- Game state ----------
-const session = Math.random().toString(36).slice(2, 10);
-let S, lastDest = null;
+let S, lastDest = null, NAME = '';
 function reset() {
   const pool = DKEYS.filter(k => k !== lastDest);
   const dest = pool[Math.floor(Math.random() * pool.length)];
   S = { step: 'intro', dest, spun: false, packed: [], mi: 0, picks: [], order: DEST[dest].moments.map(mo => shuffle(mo.opts.map((_, i) => i))),
-        nick: null, form: { email: '', where: [], needs: [], when: '', price: '' }, story: '', signedUp: false, bump: false };
+        form: { email: '', where: [], needs: [], when: '', price: '' }, story: '', signedUp: false, shares: 0, bump: false,
+        rec: { session: Math.random().toString(36).slice(2, 10), started: new Date().toISOString(), chat: CHAT, name: NAME } };
 }
 reset();
 const D = () => DEST[S.dest];
@@ -332,26 +331,29 @@ const starText = n => '★'.repeat(n) + '☆'.repeat(5 - n);
 const shareText = () => `Pack & Survive — ${D().city} ${D().flag}\n${starText(stars())}  Moved like a local at ${stars()}/5 stops, ${fmtLong(score())} slower\n${S.picks.map(p => square(p.m)).join('')}  ${title()}\nCan you beat me? ${GAME_URL}/?g=${CHAT}`;
 // Leaderboard: live rows from the Sheet when connected, otherwise just you
 let REMOTE = null;
-async function loadBoard() {
+async function loadBoard(retry = true) {
   if (!SHEET_URL) return;
-  try { REMOTE = await (await fetch(`${SHEET_URL}?action=board`)).json(); if (S.step === 'result') render(); } catch (e) {}
+  try { REMOTE = await (await fetch(`${SHEET_URL}?action=board`)).json(); if (S.step === 'result') render(); }
+  catch (e) { if (retry) setTimeout(() => loadBoard(false), 3000); }   // the script can be slow to wake up
 }
 const board = () => {
-  const rows = (REMOTE?.board || []).map(r => [r.nick, r.dest, r.stars, r.behind, 0]);
-  if (S.nick && !rows.some(r => r[0] === S.nick && r[2] === stars() && r[3] === score())) rows.push([S.nick, S.dest, stars(), score(), 1]);
-  return rows.map(r => r[0] === S.nick && r[2] === stars() && r[3] === score() ? [...r.slice(0, 4), 1] : r)
+  const key = city => DKEYS.find(k => DEST[k].city === city);
+  const rows = (REMOTE?.board || []).map(r => [r.name, key(r.dest), r.stars, r.behind, 0]);
+  const me = r => r[0] === S.rec.name && r[1] === S.dest && r[2] === stars() && r[3] === score();
+  if (!rows.some(me)) rows.push([S.rec.name, S.dest, stars(), score(), 1]);
+  return rows.map(r => me(r) ? [...r.slice(0, 4), 1] : r)
     .filter(r => DEST[r[1]]).sort((x, y) => y[2] - x[2] || x[3] - y[3]).slice(0, 10);
 };
 
-// ---------- Logging (Google Sheet hookup comes next; ?debug=1 shows the rows) ----------
-let evList;
-if (DEBUG) { document.body.insertAdjacentHTML('beforeend', '<details id="ev"><summary>Events</summary><ol></ol></details>'); evList = document.querySelector('#ev ol'); }
-function log(event, data = {}) {
-  const row = { t: new Date().toISOString(), session, chat: CHAT, event, ...data };
-  if (evList) { const li = document.createElement('li'); li.textContent = JSON.stringify(row).replace(/"/g, ''); evList.appendChild(li); }
-  if (SHEET_URL) fetch(SHEET_URL, { method: 'POST', mode: 'no-cors', keepalive: true, body: JSON.stringify(row) }).catch(() => {});
+// ---------- Saving: one Sheet row per run, updated as the player goes (?debug=1 shows it) ----------
+let dbg;
+if (DEBUG) { document.body.insertAdjacentHTML('beforeend', '<details id="ev" open><summary>Sheet row</summary><ol></ol></details>'); dbg = document.querySelector('#ev ol'); }
+function save(patch) {
+  Object.assign(S.rec, patch, { updated: new Date().toISOString() });
+  if (dbg) dbg.innerHTML = Object.entries(S.rec).map(([k, v]) => `<li>${k}: ${esc(v)}</li>`).join('');
+  if (SHEET_URL) fetch(SHEET_URL, { method: 'POST', mode: 'no-cors', keepalive: true, body: JSON.stringify(S.rec) }).catch(() => {});
 }
-log('open');
+save({ last_step: 'opened' });
 
 // ---------- Screens ----------
 const pills = (key, opts, multi) => `<div class="pills">${opts.map(([v, l]) =>
@@ -385,8 +387,12 @@ const SCREENS = {
         <div><div class="fl">Stops</div><div class="fv">5</div></div>
         <div><div class="fl">Gate</div><div class="fv">?</div></div>
       </div>
+      <div class="perf"></div>
+      <label class="fl" for="pname">Passenger name</label>
+      <input class="pname" id="pname" value="${esc(NAME)}" maxlength="20" placeholder="Your name or nickname" autocomplete="nickname">
+      <p class="lede" style="font-size:13.5px;margin-top:6px">Shown on the class leaderboard.</p>
     </div>
-    <button class="btn" data-act="spin">Spin the departures board</button>`,
+    <button class="btn" data-act="spin" ${NAME ? '' : 'disabled'}>Spin the departures board</button>`,
 
   spin: () => `
     <div class="board" aria-live="polite">
@@ -517,7 +523,6 @@ const SCREENS = {
     <div class="board" style="margin-top:16px">
       <div class="bl">Leaderboard: most stars, then fastest${REMOTE?.players ? `, ${REMOTE.players} played` : ''}</div>
       ${board().map(([n, k, st, x, me], i) => `<div class="lb num"><span>${i + 1}</span><span class="${me ? 'me' : ''}">${esc(n)} <small>${DEST[k].flag} ${DEST[k].code}</small></span><span>${'★'.repeat(st)} +${fmt(x)}</span></div>`).join('') || '<p class="bl" style="margin:10px 4px 4px">No names yet. Be the first.</p>'}
-      ${S.nick ? '' : `<div class="nick"><input id="nick" placeholder="Your name for the board" aria-label="Your name for the leaderboard" maxlength="20"><button data-act="nick">Add</button></div>`}
     </div>
     <button class="btn outline" data-act="restart">Fly somewhere else</button>`;
   },
@@ -549,28 +554,27 @@ function act(name, arg) {
   const val = id => document.getElementById(id)?.value.trim() || '';
   S.bump = false;
   switch (name) {
-    case 'spin': S.step = 'spin'; log('spin', { dest: S.dest }); break;
+    case 'spin': { const n = val('pname').slice(0, 20); if (!n) return; NAME = n; S.step = 'spin'; save({ name: n, dest: D().city, last_step: 'spun' }); break; }
     case 'to-pack': S.step = 'pack'; break;
     case 'pack': S.packed = S.packed.includes(arg) ? S.packed.filter(x => x !== arg) : S.packed.length < PACK_SLOTS ? [...S.packed, arg] : S.packed; break;
-    case 'board': S.step = 'moment'; log('pack', { apps: S.packed.join('+'), useful: goodPacks() }); break;
+    case 'board': S.step = 'moment'; save({ apps_packed: S.packed.join(', '), good_packs: goodPacks(), last_step: 'stop 1' }); break;
     case 'choose': { const mo = D().moments[S.mi], o = mo.opts[+arg];
-      S.picks[S.mi] = { i: +arg, m: o.m }; S.bump = true; log('choice', { stop: S.mi + 1, pick: o.l, min: o.m, best: +arg === bestIdx(mo) }); break; }
-    case 'next': S.mi++; if (S.mi === D().moments.length) { S.step = 'signup'; log('finish', { dest: S.dest, lost: lost(), perfect: perfect(), behind: score(), stars: stars(), useful_packed: goodPacks() }); log('ask_shown'); } break;
+      S.picks[S.mi] = { i: +arg, m: o.m }; S.bump = true; break; }
+    case 'next': S.mi++; if (S.mi === D().moments.length) { S.step = 'signup'; save({ stars: stars(), minutes_behind: score(), last_step: 'finished' }); } else save({ last_step: `stop ${S.mi + 1}` }); break;
     case 'pill': { S.form.email = val('email') || S.form.email; const [k, v, multi] = arg.split('|');
       if (multi === '1') S.form[k] = S.form[k].includes(v) ? S.form[k].filter(x => x !== v) : [...S.form[k], v]; else S.form[k] = v; break; }
-    case 'submit': S.form.email = val('email'); S.signedUp = true; log('signup', { ...S.form, where: S.form.where.join('+'), needs: S.form.needs.join('+'), dest: S.dest, score: score() });
+    case 'submit': S.form.email = val('email'); S.signedUp = true; save({ signed_up: 'yes', email: S.form.email, trip_where: S.form.where.join(', '), trip_when: S.form.when, needs: S.form.needs.join(', '), price: S.form.price, last_step: 'signed up' });
       S.step = S.form.when === '60d' && CONCIERGE ? 'concierge' : 'story'; break;
-    case 'skip': log('ask_skip'); S.step = 'result'; loadBoard(); break;
-    case 'concierge': log('concierge_optin', { yes: arg === 'yes' });
+    case 'skip': if (!S.signedUp) save({ signed_up: 'skipped' }); S.step = 'result'; loadBoard(); break;
+    case 'concierge':
       if (arg === 'yes') window.open(`https://wa.me/${CONCIERGE}?text=${encodeURIComponent('Hi Local Mode! I’m traveling to ___ on ___.')}`, '_blank');
       S.step = 'story'; break;
-    case 'story': S.story = val('story'); if (!S.story) return; log('story', { text: S.story }); S.step = 'result'; loadBoard(); break;
-    case 'story-skip': log('story', { text: '(nothing went wrong)' }); S.step = 'result'; loadBoard(); break;
-    case 'cta': S.step = 'signup'; log('cta_tap_late', { score: score() }); break;
-    case 'nick': { const n = val('nick'); if (!n) return; S.nick = n.slice(0, 20); log('leaderboard_join', { nick: S.nick, dest: S.dest, stars: stars(), behind: score() }); setTimeout(loadBoard, 2500); break; }
-    case 'share': log('share_tap', { method: navigator.share ? 'sheet' : 'whatsapp' });
+    case 'story': S.story = val('story'); if (!S.story) return; save({ story: S.story }); S.step = 'result'; loadBoard(); break;
+    case 'story-skip': S.step = 'result'; loadBoard(); break;
+    case 'cta': S.step = 'signup'; break;
+    case 'share': save({ shared: ++S.shares });
       if (navigator.share) navigator.share({ text: shareText() }).catch(() => {}); else window.open('https://wa.me/?text=' + encodeURIComponent(shareText()), '_blank'); return;
-    case 'restart': log('play_again'); lastDest = S.dest; reset(); break;
+    case 'restart': lastDest = S.dest; reset(); save({ last_step: 'opened' }); break;
   }
   render();
 }
@@ -585,7 +589,8 @@ function render() {
 }
 root.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (el && !el.disabled) act(el.dataset.act, el.dataset.arg); });
 root.addEventListener('input', e => { if (e.target.id === 'email') { S.form.email = e.target.value.trim();
-  const b = root.querySelector('[data-act=submit]'); if (b) b.disabled = !(S.form.email.includes('@') && S.form.when); } });
+  const b = root.querySelector('[data-act=submit]'); if (b) b.disabled = !(S.form.email.includes('@') && S.form.when); }
+  if (e.target.id === 'pname') root.querySelector('[data-act=spin]').disabled = !e.target.value.trim(); });
 render();
 </script>
 </body>
