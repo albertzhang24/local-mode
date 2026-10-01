@@ -44,6 +44,9 @@
   .code.unknown { color: var(--rule); }
   .flight { border-top: 2px dotted var(--rule); position: relative; height: 2px; }
   .flight svg { position: absolute; left: 50%; top: -12px; transform: translateX(-50%); width: 22px; height: 22px; color: var(--teal); background: var(--paper); padding: 0 2px; }
+  .how { list-style: none; display: grid; gap: 12px; }
+  .how li { display: grid; grid-template-columns: 26px 1fr; gap: 10px; font-size: 15px; line-height: 1.45; }
+  .how b { font: 800 24px/1 'Barlow Condensed', sans-serif; color: var(--teal); }
   .fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
   .btn { display: block; width: 100%; margin-top: 16px; padding: 19px; border-radius: 12px; background: var(--ink); color: var(--paper); font: 700 21px/1 'Barlow Condensed', sans-serif; letter-spacing: .05em; text-transform: uppercase; box-shadow: 0 12px 24px -14px rgba(0,0,0,.6); transition: transform .15s; }
   .btn:active { transform: translateY(1px) scale(.99); }
@@ -69,7 +72,13 @@
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
   .app { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 4px 12px; border-radius: 12px; border: 1.5px dashed transparent; font-size: 12.5px; font-weight: 600; text-align: center; line-height: 1.2; }
   .app.on { border-color: var(--teal); background: #fff; }
-  .app .packed { position: absolute; top: 6px; right: 4px; font: 800 10px/1 'Barlow Condensed', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--teal); border: 1.5px solid var(--teal); border-radius: 3px; padding: 2px 4px; transform: rotate(8deg); }
+  .app small { display: block; color: var(--soft); font-weight: 500; font-size: 11px; margin-top: 2px; }
+  .app .packed { position: absolute; top: 6px; right: 6px; width: 20px; height: 20px; border-radius: 50%; background: var(--teal); color: #fff; display: grid; place-items: center; }
+  .app .packed svg { width: 13px; height: 13px; stroke-width: 3; }
+  .phone { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 16px auto 4px; padding: 12px 14px 10px; width: fit-content; border-radius: 22px; background: var(--board); }
+  .phone .slot { width: 46px; height: 46px; border-radius: 11px; }
+  .phone .slot.empty { border: 1.5px dashed #56626A; }
+  .phone em { flex-basis: 100%; text-align: center; font: 700 12px/1 'Barlow Condensed', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #9AA3A8; font-style: normal; margin-top: 2px; }
   .app.off { opacity: .42; }
   .tags { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
   .tags i { width: 40px; height: 22px; border-radius: 4px 11px 11px 4px; border: 1.5px dashed var(--rule); }
@@ -172,6 +181,7 @@
 
 <script>
 const GAME_URL = 'albertzhang24.github.io/local-mode';
+const VERSION = 2;        // bump when the game changes, so results can be split by version
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbwE8e1DkDj_NFy3pXCsZhUGAjRqdlqrTVJYGIm42hQqkNBSk3BQn3U0cnasVIiP5IQvzQ/exec';   // Google Apps Script web-app URL (…/exec). Empty = nothing is saved.
 const CONCIERGE = '';   // WhatsApp number for the human concierge test, digits only. Empty = skip that screen.
 const PARAMS = new URLSearchParams(location.search);
@@ -180,10 +190,10 @@ const DEBUG = PARAMS.has('debug');
 const PACK_SLOTS = 4;
 
 // ---------- Content (fact-checked 2026-09-29) ----------
-// pack: [app, 1 = works | 'limited' = partly works | 'dark' = doesn't work there]. option: l = label, needs = app it requires (locked if not packed) or i = icon, m = minutes lost, o = outcome
+// pack: [app, 1 = works | 'limited' = partly works | 'dark' = doesn't work there, what it's for]. option: l = label, needs = app it requires (locked if not packed) or i = icon, m = minutes lost, o = outcome
 const DEST = {
   china: { city: 'Shanghai', country: 'China', code: 'PVG', flag: '🇨🇳',
-    pack: [['Alipay', 1], ['DiDi', 1], ['Amap', 1], ['Trip.com', 1], ['Travel eSIM', 1], ['Google Maps', 'limited'], ['Uber', 'dark'], ['Venmo', 'dark'], ['Uber Eats', 'dark']],
+    pack: [['Alipay', 1, 'Pay'], ['DiDi', 1, 'Ride'], ['Amap', 1, 'Maps'], ['Trip.com', 1, 'Trains'], ['Travel eSIM', 1, 'Data'], ['Google Maps', 'limited', 'Maps'], ['Uber', 'dark', 'Ride'], ['Venmo', 'dark', 'Pay'], ['Uber Eats', 'dark', 'Food']],
     moments: [
       { st: 'Pudong Airport', t: '11pm at Pudong airport. Your hotel is across town.', opts: [
         { l: 'DiDi', needs: 'DiDi', m: 15, o: 'Car at the pickup bay, fare shown upfront.' },
@@ -212,7 +222,7 @@ const DEST = {
         { l: 'Keep retrying the Wi-Fi', i: 'wifi-off', m: 60, o: 'It won’t load. Your group chat thinks you vanished.' } ] },
     ] },
   korea: { city: 'Seoul', country: 'Korea', code: 'ICN', flag: '🇰🇷',
-    pack: [['Naver Map', 1], ['K.ride', 1], ['Uber', 1], ['Papago', 1], ['T-money', 1], ['Google Maps', 'limited'], ['Grab', 'dark'], ['Venmo', 'dark'], ['Uber Eats', 'dark']],
+    pack: [['Naver Map', 1, 'Maps'], ['K.ride', 1, 'Taxi'], ['Uber', 1, 'Ride'], ['Papago', 1, 'Translate'], ['T-money', 1, 'Transit'], ['Google Maps', 'limited', 'Maps'], ['Grab', 'dark', 'Ride'], ['Venmo', 'dark', 'Pay'], ['Uber Eats', 'dark', 'Food']],
     moments: [
       { st: 'Incheon Airport', t: '12:15am at Incheon. Your hotel is in Myeongdong.', opts: [
         { l: 'K.ride', needs: 'K.ride', m: 10, o: 'Walks you to the pickup zone. Foreign card works.' },
@@ -241,7 +251,7 @@ const DEST = {
         { l: 'Order at random', i: 'dices', m: 30, o: 'Surprise: it’s live octopus.' } ] },
     ] },
   japan: { city: 'Tokyo', country: 'Japan', code: 'HND', flag: '🇯🇵',
-    pack: [['Suica', 1], ['GO', 1], ['Google Maps', 1], ['Tabelog', 1], ['Google Translate', 1], ['Uber', 1], ['PayPay', 'dark'], ['Venmo', 'dark'], ['Lyft', 'dark']],
+    pack: [['Suica', 1, 'Transit'], ['GO', 1, 'Taxi'], ['Google Maps', 1, 'Maps'], ['Tabelog', 1, 'Food'], ['Google Translate', 1, 'Translate'], ['Uber', 1, 'Ride'], ['PayPay', 'dark', 'Pay'], ['Venmo', 'dark', 'Pay'], ['Lyft', 'dark', 'Ride']],
     moments: [
       { st: 'Haneda Airport', t: '10:30pm at Haneda. Last trains leave soon.', opts: [
         { l: 'Suica on your iPhone', needs: 'Suica', m: 10, o: 'Tap through the gate. ¥300 to Shinagawa.' },
@@ -269,6 +279,156 @@ const DEST = {
         { l: 'Ask staff in English', i: 'hand', m: 20, o: 'Lots of kind gestures.' },
         { l: 'Pick at random', i: 'dices', m: 30, o: 'Surprise: it’s raw horse.' } ] },
     ] },
+  thailand: { city: 'Bangkok', country: 'Thailand', code: 'BKK', flag: '🇹🇭',
+    pack: [['Grab', 1, 'Ride'], ['Bolt', 1, 'Ride'], ['Google Maps', 1, 'Maps'], ['Travel eSIM', 1, 'Data'], ['Google Translate', 1, 'Translate'],
+           ['LINE MAN', 'limited', 'Food'], ['Uber', 'dark', 'Ride'], ['Lyft', 'dark', 'Ride'], ['Venmo', 'dark', 'Pay']],
+    moments: [
+      { st: 'Arrivals hall', t: 'Midnight landing in Bangkok. Your phone has no signal.', opts: [
+        { l: 'Travel eSIM set up at home', needs: 'Travel eSIM', m: 3, o: 'Online before the bags arrive.' },
+        { l: 'Airport SIM counter', i: 'smartphone', m: 25, o: 'Queue, passport scan, then activation.' },
+        { l: 'Hunt for free Wi-Fi', i: 'wifi-off', m: 35, o: 'Patchy portal, repeated sign-in loops.' },
+        { l: 'Stay offline till the hotel', i: 'signal', m: 50, o: 'No maps, no rides, no messages.' } ] },
+      { st: 'Taxi level', t: 'Hotel is 45 minutes away. The taxi queue looks long.', opts: [
+        { l: 'Grab, fixed fare', needs: 'Grab', m: 15, o: 'Price shown upfront, no queue, no meter debate.' },
+        { l: 'Uber', needs: 'Uber', m: 20, o: 'Uber left Thailand in 2018.' },
+        { l: 'Public taxi rank', i: 'car-taxi-front', m: 35, o: 'Metered and legit, but a 30–45 minute line.' },
+        { l: 'Driver offering a ride inside', i: 'hand', m: 55, o: 'Unlicensed, inflated flat fare, long detour.' } ] },
+      { st: 'Old Town', t: 'Reach Wat Arun by midday using the skytrain and river boat.', opts: [
+        { l: 'Transit route in Google Maps', needs: 'Google Maps', m: 15, o: 'Train to the pier, boat across, done.' },
+        { l: 'Taxi through traffic', i: 'car-taxi-front', m: 40, o: 'Gridlock on the riverside roads.' },
+        { l: 'Wander toward the river', i: 'footprints', m: 45, o: 'Hot, wrong turns, one dead-end market.' },
+        { l: 'Tuk-tuk driver: “temple closed today”', i: 'hand', m: 55, o: 'He steers you to a gem shop.' } ] },
+      { st: 'Street stall', t: 'The menu is Thai script only. The cook speaks no English.', opts: [
+        { l: 'Camera-translate the menu', needs: 'Google Translate', m: 5, o: 'Dishes appear in English over the sign.' },
+        { l: 'Point at a neighbor’s plate', i: 'utensils', m: 15, o: 'Works, but you can’t ask about spice.' },
+        { l: 'Guess from the pictures', i: 'dices', m: 30, o: 'You get something very spicy.' },
+        { l: 'Leave for a mall food court', i: 'landmark', m: 35, o: 'Safe, but half an hour gone.' } ] },
+      { st: 'Rooftop bar', t: 'Midnight, raining. Taxis keep refusing to use the meter.', opts: [
+        { l: 'Grab, fixed fare', needs: 'Grab', m: 10, o: 'Car in minutes, price agreed upfront.' },
+        { l: 'Hail a street taxi', i: 'car-taxi-front', m: 35, o: 'Three refuse the meter before one agrees.' },
+        { l: 'Haggle with a tuk-tuk', i: 'hand', m: 45, o: 'Rain-night fare after a long negotiation.' },
+        { l: 'Walk in the rain', i: 'footprints', m: 60, o: 'Soaked, and it’s further than it looked.' } ] },
+    ] },
+  india: { city: 'Delhi', country: 'India', code: 'DEL', flag: '🇮🇳',
+    pack: [['Uber', 1, 'Ride'], ['Google Maps', 1, 'Maps'], ['Travel eSIM', 1, 'Data'], ['Google Translate', 1, 'Translate'],
+           ['Zomato', 'limited', 'Food'], ['Uber Eats', 'dark', 'Food'], ['Lyft', 'dark', 'Ride'], ['Grab', 'dark', 'Ride'], ['Venmo', 'dark', 'Pay']],
+    moments: [
+      { st: 'Arrivals hall', t: '1am landing in Delhi. Your phone has no signal.', opts: [
+        { l: 'Travel eSIM set up at home', needs: 'Travel eSIM', m: 3, o: 'Online at the gate, no paperwork.' },
+        { l: 'Hunt for airport Wi-Fi', i: 'wifi-off', m: 30, o: 'Login texts a code to a number you don’t have.' },
+        { l: 'Airport SIM kiosk', i: 'smartphone', m: 40, o: 'Passport checks; activation can lag hours.' },
+        { l: 'Stay offline till the hotel', i: 'signal', m: 50, o: 'No maps and no rides.' } ] },
+      { st: 'Taxi stand', t: 'Hotel in Connaught Place. Drivers crowd the exit shouting fares.', opts: [
+        { l: 'Uber, upfront fare', needs: 'Uber', m: 15, o: 'Fare and plate shown; pays by foreign card.' },
+        { l: 'Lyft', needs: 'Lyft', m: 20, o: 'Lyft doesn’t operate in India.' },
+        { l: 'Prepaid taxi booth', i: 'car-taxi-front', m: 25, o: 'Fixed price, but you queue for the voucher.' },
+        { l: 'Driver touting inside', i: 'hand', m: 55, o: 'Unlicensed, inflated fare, shop detour.' } ] },
+      { st: 'Old Delhi', t: 'Red Fort to Humayun’s Tomb. Locals give three different answers.', opts: [
+        { l: 'Metro and walk in Google Maps', needs: 'Google Maps', m: 15, o: 'One line change, then a short walk.' },
+        { l: 'Ask three passersby', i: 'hand', m: 35, o: 'Three directions, one wrong turn.' },
+        { l: 'Wander by landmark', i: 'footprints', m: 45, o: 'Heat, crowds, and a dead-end lane.' },
+        { l: 'Follow a “site is closed” stranger', i: 'triangle-alert', m: 55, o: 'A well-known scam; you end up in a shop.' } ] },
+      { st: 'Chai stall', t: 'The vendor wants UPI. You have no Indian bank account.', opts: [
+        { l: 'Pay with small notes', i: 'banknote', m: 5, o: 'Exact change, done in seconds.' },
+        { l: 'Venmo', needs: 'Venmo', m: 15, o: 'US-only; he can’t receive it.' },
+        { l: 'Hand over a ₹500 note', i: 'banknote', m: 20, o: 'No change; you wait while he finds some.' },
+        { l: 'Tap your US card', i: 'credit-card', m: 30, o: 'No terminal; you hunt for an ATM.' } ] },
+      { st: 'Chandni Chowk', t: 'The menu is Hindi only. The vendor speaks little English.', opts: [
+        { l: 'Camera-translate the menu', needs: 'Google Translate', m: 5, o: 'Dishes and prices appear in English.' },
+        { l: 'Point at a neighbor’s plate', i: 'utensils', m: 15, o: 'Works, but no way to ask about heat.' },
+        { l: 'Let the cook choose', i: 'dices', m: 25, o: 'Arrives fast, and very spicy.' },
+        { l: 'Give up and leave', i: 'footprints', m: 45, o: 'You walk back hungry.' } ] },
+    ] },
+  brazil: { city: 'São Paulo', country: 'Brazil', code: 'GRU', flag: '🇧🇷',
+    pack: [['Uber', 1, 'Ride'], ['Google Maps', 1, 'Maps'], ['WhatsApp', 1, 'Chat'], ['Google Translate', 1, 'Translate'], ['Waze', 1, 'Traffic'],
+           ['99', 'limited', 'Ride'], ['Venmo', 'dark', 'Pay'], ['iFood', 'dark', 'Food'], ['Lyft', 'dark', 'Ride']],
+    moments: [
+      { st: 'Guarulhos', t: '6am at GRU arrivals. Your Pinheiros hotel is 25 km away.', opts: [
+        { l: 'Uber from the pickup zone', needs: 'Uber', m: 10, o: 'Upfront fare, foreign card works.' },
+        { l: '99 ride', needs: '99', m: 25, o: 'Foreign card rejected once; retry, then cash.' },
+        { l: 'Airport taxi counter', i: 'car-taxi-front', m: 30, o: 'Queue at the counter, then slow traffic.' },
+        { l: 'Airport bus, then metro', i: 'bus', m: 55, o: 'Two changes with luggage.' } ] },
+      { st: 'Avenida Paulista', t: '8:30am rush hour. You have a meeting across town.', opts: [
+        { l: 'Metro route in Google Maps', needs: 'Google Maps', m: 10, o: 'The metro skips the gridlock; on time.' },
+        { l: 'Hotel desk directions', i: 'hand', m: 25, o: 'Vague directions; one wrong line.' },
+        { l: 'Uber through traffic', needs: 'Uber', m: 40, o: 'Stuck in São Paulo gridlock; late.' },
+        { l: 'Flag a street taxi', i: 'car-taxi-front', m: 45, o: 'Same gridlock, plus hunting for a cab.' } ] },
+      { st: 'Jardins', t: 'Hungry at 9pm. The recommended restaurant fills up fast.', opts: [
+        { l: 'Book by WhatsApp', needs: 'WhatsApp', m: 10, o: 'The restaurant replies; table held.' },
+        { l: 'Order on iFood', needs: 'iFood', m: 20, o: 'Needs a Brazilian CPF number to sign up.' },
+        { l: 'Hotel concierge books', i: 'phone', m: 25, o: 'Table found, after a long hold.' },
+        { l: 'Walk in and queue', i: 'utensils', m: 40, o: 'Seated near 10pm.' } ] },
+      { st: 'Pharmacy', t: 'You need allergy medicine. The pharmacist speaks only Portuguese.', opts: [
+        { l: 'Scan the box in Translate', needs: 'Google Translate', m: 5, o: 'You buy the right one.' },
+        { l: 'Ask hotel staff on WhatsApp', needs: 'WhatsApp', m: 25, o: 'They reply eventually; slow.' },
+        { l: 'Mime your symptoms', i: 'hand', m: 35, o: 'Charades; not quite the right thing.' },
+        { l: 'Try another branch', i: 'footprints', m: 50, o: 'Hoping for English; mostly wasted time.' } ] },
+      { st: 'Vila Madalena', t: 'Midnight. The show ends and the metro is closing.', opts: [
+        { l: 'Uber', needs: 'Uber', m: 15, o: 'Surge pricing, but a car in ten minutes.' },
+        { l: 'Find a taxi rank', i: 'car-taxi-front', m: 30, o: 'A cab eventually; slow at midnight.' },
+        { l: '99 ride', needs: '99', m: 35, o: 'Card fails twice; you finally pay cash.' },
+        { l: 'Night buses', i: 'bus', m: 55, o: 'Two buses, long waits, long walk.' } ] },
+    ] },
+  turkey: { city: 'Istanbul', country: 'Turkey', code: 'IST', flag: '🇹🇷',
+    pack: [['Uber', 1, 'Ride'], ['Google Maps', 1, 'Maps'], ['WhatsApp', 1, 'Chat'], ['Google Translate', 1, 'Translate'], ['Moovit', 1, 'Transit'],
+           ['BiTaksi', 'limited', 'Taxi'], ['PayPal', 'dark', 'Pay'], ['Lyft', 'dark', 'Ride'], ['DoorDash', 'dark', 'Food']],
+    moments: [
+      { st: 'Istanbul Airport', t: 'Late landing at IST. Your Sultanahmet hotel is an hour away.', opts: [
+        { l: 'Uber taxi', needs: 'Uber', m: 20, o: 'Licensed taxi, fare estimate, card on file.' },
+        { l: 'BiTaksi', needs: 'BiTaksi', m: 30, o: 'Sign-up and card hiccups; driver takes cash.' },
+        { l: 'Airport taxi rank', i: 'car-taxi-front', m: 35, o: 'Long queue; argument over the meter.' },
+        { l: 'Havaist airport bus', i: 'bus', m: 50, o: 'Cheap and legit, but slow, plus a walk.' } ] },
+      { st: 'Eminönü', t: 'Spice Bazaar to Galata Tower. Crowded alleys, few street signs.', opts: [
+        { l: 'Walk with Google Maps', needs: 'Google Maps', m: 10, o: 'Walking route through the alleys; you arrive.' },
+        { l: 'Paper tourist map', i: 'map', m: 25, o: 'The map stops matching the alleys.' },
+        { l: 'Ask a stranger', i: 'hand', m: 35, o: 'Three people, three directions.' },
+        { l: 'Follow the tram line', i: 'footprints', m: 45, o: 'Wrong way; long detour.' } ] },
+      { st: 'Bosphorus', t: 'Dinner in Kadıköy on the Asian side. It’s 6pm rush hour.', opts: [
+        { l: 'Istanbulkart on the ferry', i: 'ticket', m: 15, o: 'Tap on and skip the bridge traffic.' },
+        { l: 'Single tickets each leg', i: 'banknote', m: 30, o: 'Queue at the machine for every leg.' },
+        { l: 'Bus route planned in Moovit', needs: 'Moovit', m: 35, o: 'Good plan, but the bus crawls over the bridge.' },
+        { l: 'Uber across the bridge', needs: 'Uber', m: 45, o: 'Bridge gridlock; over an hour.' } ] },
+      { st: 'Lokanta', t: 'Turkish-only menu at a local lunch spot. No English spoken.', opts: [
+        { l: 'Scan the menu in Translate', needs: 'Google Translate', m: 5, o: 'You order exactly what you want.' },
+        { l: 'Let the waiter choose', i: 'utensils', m: 15, o: 'Tasty, but no allergy check.' },
+        { l: 'Point at neighbors’ plates', i: 'hand', m: 20, o: 'Lunch arrives, partly a guess.' },
+        { l: 'Walk to a chain in Taksim', i: 'footprints', m: 40, o: 'Forty minutes gone for a burger.' } ] },
+      { st: 'Hammam', t: 'You want a hammam slot tonight. Popular spots book up.', opts: [
+        { l: 'Book by WhatsApp', needs: 'WhatsApp', m: 5, o: 'Reply in minutes; slot confirmed.' },
+        { l: 'Pay a deposit by PayPal', needs: 'PayPal', m: 15, o: 'PayPal hasn’t worked in Turkey since 2016.' },
+        { l: 'Hotel concierge calls', i: 'phone', m: 20, o: 'Booked, after a wait on hold.' },
+        { l: 'Walk in and queue', i: 'footprints', m: 40, o: 'Told it’s full until ten.' } ] },
+    ] },
+  austria: { city: 'Vienna', country: 'Austria', code: 'VIE', flag: '🇦🇹',
+    pack: [['ÖBB Tickets', 1, 'Trains'], ['WienMobil', 1, 'Transit'], ['ASFINAG', 1, 'Tolls'], ['KitzSki', 1, 'Ski passes'], ['Google Maps', 1, 'Maps'],
+           ['Uber', 'limited', 'Ride'], ['Venmo', 'dark', 'Pay'], ['Lyft', 'dark', 'Ride'], ['DoorDash', 'dark', 'Food']],
+    moments: [
+      { st: 'Vienna day', t: 'A full sightseeing day. The U-Bahn has no ticket gates.', opts: [
+        { l: '24-hour ticket in WienMobil', needs: 'WienMobil', m: 3, o: 'Ticket on your phone in seconds.' },
+        { l: 'Ticket machine in the station', i: 'ticket', m: 10, o: 'Works, but you hunt for a machine.' },
+        { l: 'Uber between sights', needs: 'Uber', m: 20, o: 'Works in Vienna, but waits and traffic add up.' },
+        { l: 'Ride free — there are no gates', i: 'train-front', m: 45, o: 'An inspector boards. You pay the fine.' } ] },
+      { st: 'To Salzburg', t: 'Friday 5pm train to Salzburg is busy. You want a seat.', opts: [
+        { l: 'Ticket + seat in ÖBB app', needs: 'ÖBB Tickets', m: 3, o: 'Seat reserved, ticket on your phone.' },
+        { l: 'Station ticket machine', i: 'ticket', m: 15, o: 'Friday queue; good seats may be gone.' },
+        { l: 'Buy from the conductor', i: 'train-front', m: 25, o: 'Surcharge, and you may stand two hours.' },
+        { l: 'Look it up in Google Maps', needs: 'Google Maps', m: 35, o: 'Shows the train, but can’t sell a ticket.' } ] },
+      { st: 'Border', t: 'Your German rental car enters Austria. Motorways need a vignette.', opts: [
+        { l: '10-day vignette in the app', needs: 'ASFINAG', m: 3, o: 'Linked to your plate, valid at once.' },
+        { l: 'Stop at a petrol station', i: 'car-taxi-front', m: 12, o: 'Valid at once, but a detour and a queue.' },
+        { l: 'Take back roads', i: 'clock', m: 30, o: 'No vignette needed, but much slower.' },
+        { l: 'Drive on and hope', i: 'banknote', m: 60, o: 'Plate cameras catch it: a €200 fine.' } ] },
+      { st: 'Kitzbühel lifts', t: 'Powder day. The ticket office queue wraps around the block.', opts: [
+        { l: 'Lift ticket on your phone', needs: 'KitzSki', m: 3, o: 'Your phone opens the turnstile.' },
+        { l: 'Queue at the ticket desk', i: 'ticket', m: 30, o: 'You get a pass, but miss first chair.' },
+        { l: 'Wait for the queue to thin', i: 'clock', m: 45, o: 'Half the morning gone.' },
+        { l: 'Skip the lifts, hike up', i: 'mountain-snow', m: 60, o: 'Exhausting, and the good snow is above you.' } ] },
+      { st: 'Mountain hut', t: 'Slope-side lunch. The sign says “Nur Barzahlung” — cash only.', opts: [
+        { l: 'Pay with euros you brought', i: 'banknote', m: 2, o: 'Bill settled; lunch continues.' },
+        { l: 'Venmo a friend', needs: 'Venmo', m: 8, o: 'Venmo doesn’t work here; the hut wants euros.' },
+        { l: 'Tap your card', i: 'credit-card', m: 20, o: 'Cash only; awkward pause until someone pays.' },
+        { l: 'Ski down to an ATM', i: 'footprints', m: 45, o: 'Lunch goes cold; the afternoon is mostly gone.' } ] },
+    ] },
 };
 const DKEYS = Object.keys(DEST);
 
@@ -292,7 +452,7 @@ function reset() {
   const dest = pool[Math.floor(Math.random() * pool.length)];
   S = { step: 'intro', dest, spun: false, packed: [], mi: 0, picks: [], order: DEST[dest].moments.map(mo => shuffle(mo.opts.map((_, i) => i))),
         form: { email: '', where: [], needs: [], when: '', price: '' }, story: '', signedUp: false, shares: 0, bump: false,
-        rec: { session: Math.random().toString(36).slice(2, 10), started: new Date().toISOString(), chat: CHAT, name: NAME } };
+        rec: { session: Math.random().toString(36).slice(2, 10), started: new Date().toISOString(), chat: CHAT, name: NAME, version: VERSION } };
 }
 reset();
 const D = () => DEST[S.dest];
@@ -374,19 +534,19 @@ const SCREENS = {
     <div class="tkt">
       <div class="carrier"><span><b>Local Mode</b>Boarding pass</span><span>LM 060</span></div>
       <h1>Pack &amp; Survive</h1>
-      <p class="lede">Your apps don’t travel with you. See how much of a trip you’d lose to the wrong ones.</p>
+      <p class="lede">Your US apps don’t all work abroad. Can you set up the right ones before you fly?</p>
       <div class="route">
         <div><div class="code">PHL</div><div class="fl">Philadelphia</div></div>
         <div class="flight">${lc('plane')}</div>
         <div style="text-align:right"><div class="code unknown">???</div><div class="fl">Destination</div></div>
       </div>
       <div class="perf"></div>
-      <div class="fields">
-        <div><div class="fl">Boarding</div><div class="fv">60 sec</div></div>
-        <div><div class="fl">Carry-on</div><div class="fv">4 apps</div></div>
-        <div><div class="fl">Stops</div><div class="fv">5</div></div>
-        <div><div class="fl">Gate</div><div class="fv">?</div></div>
-      </div>
+      <div class="fl" style="margin-bottom:12px">How it works · 60 seconds</div>
+      <ol class="how">
+        <li><b>1</b><span>You get a random destination.</span></li>
+        <li><b>2</b><span>Before you fly, set up <strong>4 apps</strong> on your phone. Heads-up: Uber, Google Maps and Venmo don’t work everywhere.</span></li>
+        <li><b>3</b><span>Handle 5 real moments abroad. Do what a local would do to earn a star.</span></li>
+      </ol>
       <div class="perf"></div>
       <label class="fl" for="pname">Passenger name</label>
       <input class="pname" id="pname" value="${esc(NAME)}" maxlength="20" placeholder="Your name or nickname" autocomplete="nickname">
@@ -402,24 +562,24 @@ const SCREENS = {
     <div id="spingo" style="visibility:${S.spun ? 'visible' : 'hidden'}">
       <div class="tkt" style="margin-top:14px">
         <div class="fl">Now boarding for ${D().flag} ${D().city}</div>
-        <p class="lede" style="margin-top:8px">Your flight leaves in an hour. Set up four apps before takeoff — anything you don’t pack, you can’t use on the trip.</p>
+        <p class="lede" style="margin-top:8px">Your flight leaves in an hour. Next: choose 4 apps to set up on your phone. Apps you skip won’t be available on the trip.</p>
       </div>
-      <button class="btn" data-act="to-pack">Pack my carry-on</button>
+      <button class="btn" data-act="to-pack">Set up my phone</button>
     </div>`,
 
   pack: () => {
     const full = S.packed.length === PACK_SLOTS;
     return `
-    <div class="status"><span>PHL → ${D().flag} ${D().code}</span><span>Boarding soon</span></div>
+    <div class="status"><span>PHL → ${D().flag} ${D().code}</span><span>Boarding in 1 hr</span></div>
     <div class="tkt">
-      <div class="fl">Carry-on ${S.packed.length}/${PACK_SLOTS}</div>
-      <h2 style="font:800 34px/1 'Barlow Condensed',sans-serif;margin-top:6px">Set up four apps before takeoff</h2>
-      <p class="lede" style="margin-top:8px;font-size:15px">Five stops, four apps. A local can still ace all five — some apps work at more than one stop, and some stops don’t need an app at all.</p>
-      <div class="grid">${D().pack.map(([n]) => { const on = S.packed.includes(n);
-        return `<button class="app ${on ? 'on' : full ? 'off' : ''}" data-act="pack" data-arg="${n}" aria-pressed="${on}">${logo(n)}${n}${on ? '<span class="packed">Packed</span>' : ''}</button>`; }).join('')}</div>
-      <div class="tags">${Array.from({ length: PACK_SLOTS }, (_, i) => `<i class="${i < S.packed.length ? 'full' : ''}"></i>`).join('')}</div>
+      <h2 style="font:800 34px/1 'Barlow Condensed',sans-serif">Pick 4 apps for your phone</h2>
+      <p class="lede" style="margin-top:8px;font-size:15px">Which of these will actually work in ${D().country}? Apps you don’t pick can’t be used on the trip. A local can ace all 5 moments with 4 apps.</p>
+      <div class="phone" aria-label="Your phone: ${S.packed.length} of ${PACK_SLOTS} apps">${Array.from({ length: PACK_SLOTS }, (_, i) => S.packed[i]
+        ? `<span class="slot">${logo(S.packed[i])}</span>` : '<span class="slot empty"></span>').join('')}<em>Your phone · ${S.packed.length}/${PACK_SLOTS}</em></div>
+      <div class="grid">${D().pack.map(([n, , what]) => { const on = S.packed.includes(n);
+        return `<button class="app ${on ? 'on' : full ? 'off' : ''}" data-act="pack" data-arg="${n}" aria-pressed="${on}">${logo(n)}<span>${n}<small>${what}</small></span>${on ? `<span class="packed">${lc('check')}</span>` : ''}</button>`; }).join('')}</div>
     </div>
-    <button class="btn" data-act="board" ${full ? '' : 'disabled'}>${full ? 'Board the flight' : `Pack ${PACK_SLOTS - S.packed.length} more`}</button>`;
+    <button class="btn" data-act="board" ${full ? '' : 'disabled'}>${full ? 'Board the flight' : `Pick ${PACK_SLOTS - S.packed.length} more`}</button>`;
   },
 
   moment: () => {
@@ -427,7 +587,7 @@ const SCREENS = {
     const rail = d.moments.map((_, i) => `<i class="${S.picks[i] ? 'done' : ''} ${i === S.mi ? 'now' : ''}"></i>${i < d.moments.length - 1 ? `<b class="${S.picks[i] ? band(S.picks[i].m) : ''}"></b>` : ''}`).join('');
     const row = i => {
       const o = mo.opts[i], locked = !usable(o), inner = `${optIcon(o)}<span>${o.l}</span>`;
-      const lockTag = o.needs && dark(o.needs) ? `<span class="tag dark">${lc('moon')}Dark in ${d.country}</span>` : `<span class="tag lock">${lc('lock')}Not packed</span>`;
+      const lockTag = o.needs && dark(o.needs) ? `<span class="tag dark">${lc('moon')}Dark in ${d.country}</span>` : `<span class="tag lock">${lc('lock')}Not set up</span>`;
       if (locked) return `<div class="opt locked ${o.needs && dark(o.needs) ? 'isdark' : ''}" aria-disabled="true">${inner}${lockTag}</div>`;
       if (!p) return `<button class="opt" data-act="choose" data-arg="${i}">${inner}</button>`;
       const cls = i === p.i ? (i === best ? 'right' : 'wrong') : i === best ? 'best' : 'dim';
@@ -448,7 +608,7 @@ const SCREENS = {
         <div class="fv num ${matched(S.mi) ? 'good' : 'bad'}">${matched(S.mi) ? 'Like a local ★ ' : ''}+<span data-count="${S.bump ? 0 : p.m}|${p.m}">${fmt(p.m)}</span></div>
         ${mo.opts[p.i].o}
         ${matched(S.mi) ? '' : p.i === best
-          ? `<div class="hint">Best you could do — but a local would use ${localOpt(S.mi).l} (+${fmt(localOpt(S.mi).m)}). You didn’t pack it.</div>`
+          ? `<div class="hint">Best you could do — but a local would use ${localOpt(S.mi).l} (+${fmt(localOpt(S.mi).m)}). You didn’t set it up.</div>`
           : `<div class="hint">Best move you had: ${mo.opts[best].l}, +${fmt(mo.opts[best].m)}.${localOpt(S.mi).l !== mo.opts[best].l ? ` A local would use ${localOpt(S.mi).l}.` : ''}</div>`}</div>` : ''}
     </div>
     ${p ? `<button class="btn" data-act="next">${S.mi === d.moments.length - 1 ? 'Land' : 'Next stop'}</button>` : ''}`;
@@ -511,8 +671,8 @@ const SCREENS = {
       </div>
       <p class="explain">One star for every stop where you did what a local would do. A local packs the right 4 apps and makes the fastest move at each stop.</p>
       <div class="perf"></div>
-      <div class="fl" style="margin-bottom:10px;display:flex;justify-content:space-between"><span>Your route</span><span>${goodPacks()}/${PACK_SLOTS} apps packed right</span></div>
-      <p class="wentdark" style="font-weight:500">${lc('star')}A local packs: ${localPlan().pack.join(', ')}</p>
+      <div class="fl" style="margin-bottom:10px;display:flex;justify-content:space-between"><span>Your route</span><span>${goodPacks()}/${PACK_SLOTS} apps chosen right</span></div>
+      <p class="wentdark" style="font-weight:500">${lc('star')}A local sets up: ${localPlan().pack.join(', ')}</p>
       ${S.packed.some(dark) ? `<p class="wentdark">${lc('moon')}Went dark in ${d.country}: ${S.packed.filter(dark).join(', ')}</p>` : ''}
       <div>${S.picks.map((pk, i) => `<div class="stop"><div class="rl"><span class="st"></span>${i < d.moments.length - 1 ? `<span class="seg" style="background:var(--${band(pk.m)})"></span>` : ''}</div>
         <div class="nm">${d.moments[i].st}<small>${matched(i) ? `${lc('star')} ${d.moments[i].opts[pk.i].l} — same as a local` : `${d.moments[i].opts[pk.i].l}. A local: ${localOpt(i).l}, +${fmt(localOpt(i).m)}`}</small></div><div class="c num">+${fmt(pk.m)}</div></div>`).join('')}</div>
